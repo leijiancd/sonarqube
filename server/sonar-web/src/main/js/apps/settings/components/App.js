@@ -89,7 +89,7 @@ export default class App extends React.PureComponent {
 
         {branchName == null && <PageHeader branch={branchName} component={this.props.component} />}
         <div className="side-tabs-layout settings-layout">
-          {branchName == null &&
+          {branchName == null && (
             <div className="side-tabs-side">
               <AllCategoriesList
                 branch={branchName}
@@ -97,7 +97,8 @@ export default class App extends React.PureComponent {
                 selectedCategory={selectedCategory}
                 defaultCategory={this.props.defaultCategory}
               />
-            </div>}
+            </div>
+          )}
           <div className="side-tabs-main">
             <CategoryDefinitionsList
               branch={branchName}
