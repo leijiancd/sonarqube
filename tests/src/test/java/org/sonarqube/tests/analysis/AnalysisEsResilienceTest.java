@@ -141,7 +141,7 @@ public class AnalysisEsResilienceTest {
   }
 
   @Test
-  public void indexation_is_failing_when_es_is_readonly() throws Exception {
+  public void compute_engine_task_must_be_red_when_es_is_not_available() throws Exception {
     Organization organization = tester.organizations().generate();
     User orgAdministrator = tester.users().generateAdministrator(organization);
     WsProjects.CreateWsResponse.Project project = tester.projects().generate(organization);
