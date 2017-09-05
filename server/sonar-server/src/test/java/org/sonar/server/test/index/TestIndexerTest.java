@@ -129,7 +129,7 @@ public class TestIndexerTest {
         .setExecutionTimeMs(123_456L)
         .addCoveredFile(DbFileSources.Test.CoveredFile.newBuilder().setFileUuid("MAIN_UUID_1").addCoveredLine(42))
         .build()));
-    underTest.doIndex(Iterators.singletonIterator(dbRow), BulkIndexer.Size.REGULAR, IndexingListener.NOOP);
+    underTest.doIndex(Iterators.singletonIterator(dbRow), BulkIndexer.Size.REGULAR, IndexingListener.FAIL_ON_ERROR);
 
     assertThat(countDocuments()).isEqualTo(2L);
 

@@ -22,11 +22,20 @@ package org.sonarqube.tests.analysis;
 import com.sonar.orchestrator.Orchestrator;
 import com.sonar.orchestrator.build.BuildResult;
 import com.sonar.orchestrator.build.SonarScanner;
+import com.sonar.orchestrator.util.NetworkUtils;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import org.junit.After;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -36,15 +45,18 @@ import org.sonarqube.tests.Tester;
 import org.sonarqube.ws.Issues;
 import org.sonarqube.ws.Organizations.Organization;
 import org.sonarqube.ws.QualityProfiles.CreateWsResponse.QualityProfile;
+import org.sonarqube.ws.WsCe;
 import org.sonarqube.ws.WsProjects;
 import org.sonarqube.ws.WsUsers.CreateWsResponse.User;
 import org.sonarqube.ws.client.component.SuggestionsWsRequest;
 import org.sonarqube.ws.client.issue.SearchWsRequest;
 import util.ItUtils;
 
+import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.sonarqube.tests.Byteman.Process.CE;
+import static org.sonarqube.ws.WsCe.TaskStatus.FAILED;
 import static util.ItUtils.projectDir;
 
 public class AnalysisEsResilienceTest {
@@ -52,12 +64,20 @@ public class AnalysisEsResilienceTest {
   @ClassRule
   public static final Orchestrator orchestrator;
   private static final Byteman byteman;
+  private static final int esHttpPort = NetworkUtils.getNextAvailablePort(InetAddress.getLoopbackAddress());
+  private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+  private static final String READONLY = "{" +
+    "  \"index\": { " +
+    "    \"blocks.read_only\": %b " +
+    "  } " +
+    "} ";
 
   static {
     byteman = new Byteman(Orchestrator.builderEnv(), CE);
     orchestrator = byteman
       .getOrchestratorBuilder()
       .addPlugin(ItUtils.xooPlugin())
+      .setServerProperty("sonar.search.httpPort", "" + esHttpPort)
       .build();
   }
 
@@ -67,6 +87,9 @@ public class AnalysisEsResilienceTest {
   @After
   public void after() throws Exception {
     byteman.deactivateAllRules();
+    for (String index : Arrays.asList("issues", "rules", "users", "components", "views", "tests", "projectmeasures")) {
+      setElasticsearchIndexConfig(index, false);
+    }
   }
 
   @Test
@@ -117,6 +140,27 @@ public class AnalysisEsResilienceTest {
         tuple(file3Key, "OPEN"));
   }
 
+  @Test
+  public void indexation_is_failing_when_es_is_readonly() throws Exception {
+    Organization organization = tester.organizations().generate();
+    User orgAdministrator = tester.users().generateAdministrator(organization);
+    WsProjects.CreateWsResponse.Project project = tester.projects().generate(organization);
+    String projectKey = project.getKey();
+    String fileKey = projectKey + ":src/main/xoo/sample/Sample.xoo";
+
+    QualityProfile profile = tester.qProfiles().createXooProfile(organization);
+    tester.qProfiles()
+      .activateRule(profile, "xoo:OneIssuePerFile")
+      .assignQProfileToProject(profile, project);
+
+    setElasticsearchIndexConfig("issues", true);
+
+    String analysisKey = executeAnalysis(projectKey, organization, orgAdministrator, "analysis/resilience/resilience-sample-v1");
+    WsCe.TaskResponse task = tester.wsClient().ce().task(analysisKey);
+
+    assertThat(task.getTask().getStatus()).isEqualTo(FAILED);
+  }
+
   private List<Issues.Issue> searchIssues(String projectKey) {
     SearchWsRequest request = new SearchWsRequest()
       .setProjectKeys(Collections.singletonList(projectKey));
@@ -147,4 +191,14 @@ public class AnalysisEsResilienceTest {
     return ItUtils.extractCeTaskId(buildResult);
   }
 
+  private void setElasticsearchIndexConfig(String index, boolean readOnly) throws IOException {
+    RequestBody body = RequestBody.create(JSON, format(READONLY, readOnly));
+    OkHttpClient client = new OkHttpClient();
+    Request request = new Request.Builder()
+      .url(format("http://%s:%d/%s/_settings", InetAddress.getLoopbackAddress().getHostAddress(), esHttpPort, index))
+      .put(body)
+      .build();
+    Response response = client.newCall(request).execute();
+    assertThat(response.isSuccessful()).isTrue();
+  }
 }
