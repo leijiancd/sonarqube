@@ -91,7 +91,7 @@ public class CpdExecutorTest {
 
     index = new SonarCpdBlockIndex(publisher, settings);
     DefaultInputModule inputModule = TestInputFileBuilder.newDefaultInputModule("foo", baseDir);
-    componentStore = new InputComponentStore(inputModule, mock(AnalysisMode.class));
+    componentStore = new InputComponentStore(inputModule, mock(AnalysisMode.class), mock(BranchConfiguration.class));
     executor = new CpdExecutor(settings, index, publisher, componentStore, branchConfig);
     reader = new ScannerReportReader(outputDir);
 
