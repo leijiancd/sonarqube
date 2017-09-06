@@ -109,6 +109,9 @@ public class StartupIndexation {
       if (orchestrator != null) {
         orchestrator.stop();
       }
+      if (logsTailer != null) {
+        logsTailer.close();
+      }
     }
   }
 }
