@@ -171,6 +171,9 @@ public class CeShutdownTest {
       if (orchestrator != null) {
         orchestrator.stop();
       }
+      if (logsTailer != null) {
+        logsTailer.close();
+      }
     }
   }
 }
