@@ -60,6 +60,7 @@
     <module>sonar-subcategories-plugin</module>
     <module>ui-extensions-plugin</module>
     <module>posttask-plugin</module>
+    <module>wait-at-platform-level4-plugin</module>
     <module>ws-plugin</module>
   </modules>
 </project>
