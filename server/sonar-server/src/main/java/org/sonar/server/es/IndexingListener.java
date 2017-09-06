@@ -36,7 +36,7 @@ public interface IndexingListener {
     @Override
     public void onFinish(IndexingResult result) {
       if (result.getFailures() > 0) {
-        throw new IllegalStateException("Indexation failures");
+        throw new IllegalStateException("Unrecoverable indexation failures");
       }
     }
   };
