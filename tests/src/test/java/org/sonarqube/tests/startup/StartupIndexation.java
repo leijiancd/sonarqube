@@ -47,11 +47,14 @@ public class StartupIndexation {
 
   @Test
   public void elasticsearch_error_at_startup_must_shutdown_node() throws Exception {
-    try (SonarQube sonarQube = new SonarQube()) {
+    try (SonarQube sonarQube = new SonarQube();
+         LogsTailer.Watch failedInitialization = sonarQube.logsTailer.watch("Background initialization failed. Stopping SonarQube");
+         LogsTailer.Watch stopWatcher = sonarQube.logsTailer.watch("SonarQube is stopped")) {
       sonarQube.lockAllElasticsearchWrites();
       sonarQube.resume();
-      sonarQube.waitForShutdown();
-      assertThat(sonarQube.isStopped()).isTrue();
+      stopWatcher.waitForLog(10, TimeUnit.SECONDS);
+      assertThat(stopWatcher.getLog()).isPresent();
+      assertThat(failedInitialization.getLog()).isPresent();
     }
   }
 
@@ -60,7 +63,6 @@ public class StartupIndexation {
     private final Tester tester;
     private final File pauseFile;
     private final LogsTailer logsTailer;
-    private final LogsTailer.Watch stopWatcher;
     private final int esHttpPort = NetworkUtils.getNextAvailablePort(InetAddress.getLoopbackAddress());
 
     SonarQube() throws Exception {
@@ -74,14 +76,14 @@ public class StartupIndexation {
         .setServerProperty("sonar.search.httpPort", "" + esHttpPort)
         .build();
       tester = new Tester(orchestrator);
-      tester.setElasticsearchHttpPort(esHttpPort);
 
       orchestrator.start();
+
       logsTailer = LogsTailer.builder()
+        .addFile(orchestrator.getServer().getWebLogs())
         .addFile(orchestrator.getServer().getCeLogs())
         .addFile(orchestrator.getServer().getAppLogs())
         .build();
-      stopWatcher = logsTailer.watch("SonarQube is stopped");
     }
 
     LogsTailer logs() {
@@ -102,19 +104,8 @@ public class StartupIndexation {
       }
     }
 
-    void waitForShutdown() throws InterruptedException {
-      stopWatcher.waitForLog(10, TimeUnit.SECONDS);
-    }
-
-    boolean isStopped() {
-      return stopWatcher.getLog().isPresent();
-    }
-
     @Override
     public void close() throws Exception {
-      if (stopWatcher != null) {
-        stopWatcher.close();
-      }
       if (orchestrator != null) {
         orchestrator.stop();
       }
