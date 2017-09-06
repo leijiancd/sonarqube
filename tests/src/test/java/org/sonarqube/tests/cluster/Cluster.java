@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.slf4j.LoggerFactory;
+import util.ItUtils;
 
 import static java.util.stream.Collectors.joining;
 
@@ -121,6 +122,7 @@ class Cluster implements AutoCloseable {
     if (node.getName().isPresent()) {
       builder.setServerProperty("sonar.cluster.node.name", node.getName().get());
     }
+    builder.addPlugin(ItUtils.pluginArtifact("server-plugin"));
     builder.setStartupLogWatcher(logLine -> true);
     return builder;
   }
